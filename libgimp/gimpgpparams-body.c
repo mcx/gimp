@@ -1211,19 +1211,27 @@ gimp_gp_param_to_value (gpointer        gimp,
                     "curve-type", param->data.d_curve.curve_type,
                     NULL);
 
-      for (gint j = 0; j < param->data.d_curve.n_points; j++)
+      if (param->data.d_curve.curve_type == GIMP_CURVE_SMOOTH)
         {
-          gimp_curve_add_point (curve, param->data.d_curve.points[j * 2],
-                                param->data.d_curve.points[(j * 2) + 1]);
+          for (gint j = 0; j < param->data.d_curve.n_points; j++)
+            {
+              gimp_curve_add_point (curve, param->data.d_curve.points[j * 2],
+                                    param->data.d_curve.points[(j * 2) + 1]);
 
-          gimp_curve_set_point_type (curve, j,
-                                     param->data.d_curve.point_types[j]);
+              gimp_curve_set_point_type (curve, j,
+                                         param->data.d_curve.point_types[j]);
+            }
         }
+      else /* if (param->data.d_curve.curve_type == GIMP_CURVE_FREE) */
+        {
+          gint n_samples = param->data.d_curve.n_samples;
 
-      if (param->data.d_curve.n_samples > 0)
-        g_object_set (curve,
-                      "n-samples", param->data.d_curve.n_samples,
-                      NULL);
+          gimp_curve_set_n_samples (curve, n_samples);
+          for (gint j = 0; j < n_samples; j++)
+            gimp_curve_set_sample (curve,
+                                   (gdouble) j / (gdouble) (n_samples - 1),
+                                   param->data.d_curve.samples[j]);
+        }
 
       g_value_set_object (value, curve);
 
@@ -1790,29 +1798,46 @@ gimp_value_to_gp_param (const GValue *value,
 
       param->param_type = GP_PARAM_TYPE_CURVE;
 
-      param->data.d_curve.n_points  = gimp_curve_get_n_points (curve);
-      g_object_get (curve,
-                    "curve-type",  &param->data.d_curve.curve_type,
-                    "n-samples",   &param->data.d_curve.n_samples,
-                    NULL);
+      param->data.d_curve.curve_type = gimp_curve_get_curve_type (curve);
 
-      param->data.d_curve.points = g_new0 (gdouble,
-                                           2 * param->data.d_curve.n_points);
-
-      param->data.d_curve.point_types = g_new0 (GimpCurvePointType,
-                                                param->data.d_curve.n_points);
-
-      for (gint j = 0; j < param->data.d_curve.n_points; j++)
+      if (param->data.d_curve.curve_type == GIMP_CURVE_SMOOTH)
         {
-          gdouble x;
-          gdouble y;
+          param->data.d_curve.n_points    = gimp_curve_get_n_points (curve);
+          param->data.d_curve.points      = g_new0 (gdouble,
+                                                    2 * param->data.d_curve.n_points);
+          param->data.d_curve.point_types = g_new0 (GimpCurvePointType,
+                                                    param->data.d_curve.n_points);
 
-          gimp_curve_get_point (curve, j, &x, &y);
-          param->data.d_curve.points[j * 2]       = x;
-          param->data.d_curve.points[(j * 2) + 1] = y;
+          for (gint j = 0; j < param->data.d_curve.n_points; j++)
+            {
+              gdouble x;
+              gdouble y;
 
-          param->data.d_curve.point_types[j] =
-            gimp_curve_get_point_type (curve, j);
+              gimp_curve_get_point (curve, j, &x, &y);
+              param->data.d_curve.points[j * 2]       = x;
+              param->data.d_curve.points[(j * 2) + 1] = y;
+
+              param->data.d_curve.point_types[j] =
+                gimp_curve_get_point_type (curve, j);
+            }
+
+          param->data.d_curve.n_samples = 0;
+          param->data.d_curve.samples   = NULL;
+        }
+      else /* if (param->data.d_curve.curve_type == GIMP_CURVE_FREE) */
+        {
+          gint n_samples = gimp_curve_get_n_samples (curve);
+
+          param->data.d_curve.n_samples = n_samples;
+          param->data.d_curve.samples   = g_new0 (gdouble, n_samples);
+
+          for (gint j = 0; j < n_samples; j++)
+            param->data.d_curve.samples[j] = gimp_curve_get_sample (curve,
+                                                                    (gdouble) j / (gdouble) (n_samples - 1));
+
+          param->data.d_curve.n_points    = 0;
+          param->data.d_curve.points      = NULL;
+          param->data.d_curve.point_types = NULL;
         }
     }
   else if (G_VALUE_HOLDS_PARAM (value))
@@ -1948,6 +1973,7 @@ _gimp_gp_params_free (GPParam  *params,
             {
               g_free (params[i].data.d_curve.points);
               g_free (params[i].data.d_curve.point_types);
+              g_free (params[i].data.d_curve.samples);
             }
           break;
         }

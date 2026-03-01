@@ -2250,6 +2250,19 @@ _gp_params_read (GIOChannel  *channel,
                 (*params)[i].data.d_curve.point_types = NULL;
                 goto cleanup;
               }
+
+            (*params)[i].data.d_curve.samples = g_new0 (gdouble,
+                                                        (*params)[i].data.d_curve.n_samples);
+
+            if (! _gimp_wire_read_double (channel,
+                                          (*params)[i].data.d_curve.samples,
+                                          (*params)[i].data.d_curve.n_samples,
+                                          user_data))
+              {
+                g_free ((*params)[i].data.d_curve.samples);
+                (*params)[i].data.d_curve.samples = NULL;
+                goto cleanup;
+              }
           }
           break;
         }
@@ -2510,6 +2523,13 @@ _gp_params_write (GIOChannel *channel,
                                         params[i].data.d_curve.n_points,
                                         user_data))
             return;
+
+          if (! _gimp_wire_write_double (channel,
+                                         params[i].data.d_curve.samples,
+                                         params[i].data.d_curve.n_samples,
+                                         user_data))
+            return;
+
           break;
         }
     }
@@ -2595,6 +2615,8 @@ _gp_params_destroy (GPParam *params,
             g_free (params[i].data.d_curve.points);
           if (params[i].data.d_curve.point_types)
             g_free (params[i].data.d_curve.point_types);
+          if (params[i].data.d_curve.samples)
+            g_free (params[i].data.d_curve.samples);
           break;
         }
     }

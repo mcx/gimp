@@ -76,6 +76,8 @@ static void          gimp_curve_get_property      (GObject          *object,
                                                    GValue           *value,
                                                    GParamSpec       *pspec);
 
+static void          gimp_curve_build_samples     (GimpCurve        *curve);
+
 
 G_DEFINE_TYPE (GimpCurve, gimp_curve, G_TYPE_OBJECT);
 
@@ -160,7 +162,7 @@ gimp_curve_init (GimpCurve *curve)
 {
   curve->n_points  = 0;
   curve->points    = NULL;
-  curve->n_samples = 0;
+  curve->n_samples = 256;
   curve->samples   = NULL;
   curve->identity  = FALSE;
 }
@@ -192,7 +194,10 @@ gimp_curve_set_property (GObject      *object,
       break;
 
     case PROP_N_SAMPLES:
-      gimp_curve_set_n_samples (curve, g_value_get_int (value));
+      if (curve->curve_type == GIMP_CURVE_FREE)
+        gimp_curve_set_n_samples (curve, g_value_get_int (value));
+      else
+        curve->n_samples = g_value_get_int (value);
       break;
 
     default:
@@ -230,6 +235,9 @@ gimp_curve_get_property (GObject    *object,
 /**
  * gimp_curve_new:
  *
+ * Creates a new #GimpCurve object, of type
+ * [enum@Gimp.CurveType.SMOOTH], with 0 points initially.
+ *
  * Returns: (transfer full): a new curve.
  *
  * Since: 3.2
@@ -238,6 +246,22 @@ GimpCurve *
 gimp_curve_new (void)
 {
   return g_object_new (GIMP_TYPE_CURVE, NULL);
+}
+
+/**
+ * gimp_curve_get_curve_type:
+ * @curve: the #GimpCurve.
+ *
+ * Returns: the @curve type.
+ *
+ * Since: 3.2
+ */
+GimpCurveType
+gimp_curve_get_curve_type (GimpCurve *curve)
+{
+  g_return_val_if_fail (GIMP_IS_CURVE (curve), GIMP_CURVE_SMOOTH);
+
+  return curve->curve_type;
 }
 
 /**
@@ -267,11 +291,11 @@ gimp_curve_set_curve_type (GimpCurve     *curve,
     {
       g_object_freeze_notify (G_OBJECT (curve));
 
-      curve->curve_type = curve_type;
-
       if (curve_type == GIMP_CURVE_SMOOTH)
         {
           gint i;
+
+          curve->curve_type = curve_type;
 
           g_free (curve->points);
 
@@ -296,6 +320,8 @@ gimp_curve_set_curve_type (GimpCurve     *curve,
       else
         {
           gimp_curve_clear_points (curve);
+          curve->curve_type = curve_type;
+          gimp_curve_build_samples (curve);
         }
 
       g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_CURVE_TYPE]);
@@ -326,72 +352,9 @@ gint
 gimp_curve_get_n_points (GimpCurve *curve)
 {
   g_return_val_if_fail (GIMP_IS_CURVE (curve), 0);
+  g_return_val_if_fail (curve->curve_type == GIMP_CURVE_SMOOTH, 0);
 
   return curve->n_points;
-}
-
-/**
- * gimp_curve_set_n_samples:
- * @curve: the #GimpCurve.
- * @n_samples: the number of samples.
- *
- * Sets the number of sample in a [enum@Gimp.CurveType.FREE] @curve.
- *
- * Samples will be positioned on the curve abscissa at regular interval.
- * The more samples, the more your curve will have details. Currently,
- * the value of @n_samples is limited and must be between `2^8` and `2^12`.
- *
- * Note that changing the number of samples will reset the curve to an
- * identity curve.
- *
- * Since: 3.2
- */
-void
-gimp_curve_set_n_samples (GimpCurve *curve,
-                          gint       n_samples)
-{
-  g_return_if_fail (GIMP_IS_CURVE (curve));
-  g_return_if_fail (n_samples >= 256);
-  g_return_if_fail (n_samples <= 4096);
-
-  if (n_samples != curve->n_samples)
-    {
-      gint i;
-
-      g_object_freeze_notify (G_OBJECT (curve));
-
-      curve->n_samples = n_samples;
-      curve->samples   = g_renew (gdouble, curve->samples, curve->n_samples);
-
-      for (i = 0; i < curve->n_samples; i++)
-        curve->samples[i] = (gdouble) i / (gdouble) (curve->n_samples - 1);
-
-      if (curve->curve_type == GIMP_CURVE_FREE)
-        curve->identity = TRUE;
-
-      g_object_thaw_notify (G_OBJECT (curve));
-
-      g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_N_SAMPLES]);
-      g_signal_emit (G_OBJECT (curve), gimp_curve_signals[SAMPLES_CHANGED], 0);
-    }
-}
-
-/**
- * gimp_curve_get_n_samples:
- * @curve: the #GimpCurve.
- *
- * Gets the number of samples in a [enum@Gimp.CurveType.FREE] curve.
- *
- * Returns: the number of samples in a freehand curve.
- *
- * Since: 3.2
- */
-gint
-gimp_curve_get_n_samples (GimpCurve *curve)
-{
-  g_return_val_if_fail (GIMP_IS_CURVE (curve), 0);
-
-  return curve->n_samples;
 }
 
 /**
@@ -412,8 +375,7 @@ gimp_curve_get_n_samples (GimpCurve *curve)
  * number of points in this @curve. Any such information you currently
  * hold should be considered invalid once the curve is changed.
  *
- * Returns: a point identifier to be used in other functions, or -1 on
- *          error.
+ * Returns: a point identifier to be used in other functions.
  *
  * Since: 3.2
  */
@@ -426,9 +388,7 @@ gimp_curve_add_point (GimpCurve *curve,
   gint            point;
 
   g_return_val_if_fail (GIMP_IS_CURVE (curve), -1);
-
-  if (curve->curve_type == GIMP_CURVE_FREE)
-    return -1;
+  g_return_val_if_fail (curve->curve_type == GIMP_CURVE_SMOOTH, -1);
 
   x = CLAMP (x, 0.0, 1.0);
   y = CLAMP (y, 0.0, 1.0);
@@ -486,6 +446,7 @@ gimp_curve_get_point (GimpCurve *curve,
                       gdouble   *y)
 {
   g_return_if_fail (GIMP_IS_CURVE (curve));
+  g_return_if_fail (curve->curve_type == GIMP_CURVE_SMOOTH);
   g_return_if_fail (point >= 0 && point < curve->n_points);
 
   if (x) *x = curve->points[point].x;
@@ -508,6 +469,7 @@ gimp_curve_set_point_type (GimpCurve          *curve,
                            GimpCurvePointType  type)
 {
   g_return_if_fail (GIMP_IS_CURVE (curve));
+  g_return_if_fail (curve->curve_type == GIMP_CURVE_SMOOTH);
   g_return_if_fail (point >= 0 && point < curve->n_points);
 
   curve->points[point].type = type;
@@ -529,6 +491,7 @@ gimp_curve_get_point_type (GimpCurve *curve,
                            gint       point)
 {
   g_return_val_if_fail (GIMP_IS_CURVE (curve), GIMP_CURVE_POINT_SMOOTH);
+  g_return_val_if_fail (curve->curve_type == GIMP_CURVE_SMOOTH, GIMP_CURVE_POINT_SMOOTH);
   g_return_val_if_fail (point >= 0 && point < curve->n_points, GIMP_CURVE_POINT_SMOOTH);
 
   return curve->points[point].type;
@@ -558,6 +521,7 @@ gimp_curve_delete_point (GimpCurve *curve,
   GimpCurvePoint *points;
 
   g_return_if_fail (GIMP_IS_CURVE (curve));
+  g_return_if_fail (curve->curve_type == GIMP_CURVE_SMOOTH);
   g_return_if_fail (point >= 0 && point < curve->n_points);
 
   points = g_new0 (GimpCurvePoint, curve->n_points - 1);
@@ -594,6 +558,7 @@ gimp_curve_set_point (GimpCurve *curve,
                       gdouble    y)
 {
   g_return_if_fail (GIMP_IS_CURVE (curve));
+  g_return_if_fail (curve->curve_type == GIMP_CURVE_SMOOTH);
   g_return_if_fail (point >= 0 && point < curve->n_points);
 
   curve->points[point].x = CLAMP (x, 0.0, 1.0);
@@ -622,6 +587,7 @@ void
 gimp_curve_clear_points (GimpCurve *curve)
 {
   g_return_if_fail (GIMP_IS_CURVE (curve));
+  g_return_if_fail (curve->curve_type == GIMP_CURVE_SMOOTH);
 
   if (curve->points)
     {
@@ -630,6 +596,121 @@ gimp_curve_clear_points (GimpCurve *curve)
 
       g_signal_emit (G_OBJECT (curve), gimp_curve_signals[POINTS_CHANGED], 0);
     }
+}
+
+/**
+ * gimp_curve_get_n_samples:
+ * @curve: the #GimpCurve.
+ *
+ * Gets the number of samples in a [enum@Gimp.CurveType.FREE] curve.
+ *
+ * Returns: the number of samples in a freehand curve.
+ *
+ * Since: 3.2
+ */
+gint
+gimp_curve_get_n_samples (GimpCurve *curve)
+{
+  g_return_val_if_fail (GIMP_IS_CURVE (curve), 0);
+  g_return_val_if_fail (curve->curve_type == GIMP_CURVE_FREE, 0);
+
+  return curve->n_samples;
+}
+
+/**
+ * gimp_curve_set_n_samples:
+ * @curve: the #GimpCurve.
+ * @n_samples: the number of samples.
+ *
+ * Sets the number of sample in a [enum@Gimp.CurveType.FREE] @curve.
+ *
+ * Samples will be positioned on the curve abscissa at regular interval.
+ * The more samples, the more your curve will have details. Currently,
+ * the value of @n_samples is limited and must be between `2^8` and `2^12`.
+ *
+ * Note that changing the number of samples will reset the curve to an
+ * identity curve.
+ *
+ * Since: 3.2
+ */
+void
+gimp_curve_set_n_samples (GimpCurve *curve,
+                          gint       n_samples)
+{
+  g_return_if_fail (GIMP_IS_CURVE (curve));
+  g_return_if_fail (curve->curve_type == GIMP_CURVE_FREE);
+  g_return_if_fail (n_samples >= 256);
+  g_return_if_fail (n_samples <= 4096);
+
+  if (n_samples != curve->n_samples)
+    {
+      g_object_freeze_notify (G_OBJECT (curve));
+      curve->n_samples = n_samples;
+      gimp_curve_build_samples (curve);
+      g_object_thaw_notify (G_OBJECT (curve));
+
+      g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_N_SAMPLES]);
+      g_signal_emit (G_OBJECT (curve), gimp_curve_signals[SAMPLES_CHANGED], 0);
+    }
+}
+
+/**
+ * gimp_curve_get_sample:
+ * @curve: the #GimpCurve.
+ * @x: an abscissa on a `[0.0, 1.0]` range.
+ *
+ * Gets the ordinate @y value corresponding to the passed @x abscissa
+ * value, in a [enum@Gimp.CurveType.FREE] @curve.
+ *
+ * Note that while the @y coordinate will be stored exactly, the @x
+ * coordinate will be rounded to the closest curve sample on the
+ * abscissa. The more sample was set with
+ * [method@Gimp.Curve.set_n_samples], the more precise the rounding will
+ * be.
+ *
+ * Since: 3.2
+ */
+gdouble
+gimp_curve_get_sample (GimpCurve *curve,
+                       gdouble    x)
+{
+  g_return_val_if_fail (GIMP_IS_CURVE (curve), 0);
+  g_return_val_if_fail (curve->curve_type == GIMP_CURVE_FREE, 0);
+  g_return_val_if_fail (x >= 0 && x <= 1.0, 0);
+
+  return curve->samples[ROUND (x * (gdouble) (curve->n_samples - 1))];
+}
+
+/**
+ * gimp_curve_set_sample:
+ * @curve: the #GimpCurve.
+ * @x: the point abscissa on a `[0.0, 1.0]` range.
+ * @y: the point ordinate on a `[0.0, 1.0]` range.
+ *
+ * Sets a sample in a [enum@Gimp.CurveType.FREE] @curve, with
+ * coordinates `(x, y)`.
+ *
+ * Note that while the @y coordinate will be stored exactly, the @x
+ * coordinate will be rounded to the closest curve sample on the
+ * abscissa. The more sample was set with
+ * [method@Gimp.Curve.set_n_samples], the more precise the rounding will
+ * be.
+ *
+ * Since: 3.2
+ */
+void
+gimp_curve_set_sample (GimpCurve *curve,
+                       gdouble    x,
+                       gdouble    y)
+{
+  g_return_if_fail (GIMP_IS_CURVE (curve));
+  g_return_if_fail (curve->curve_type == GIMP_CURVE_FREE);
+  g_return_if_fail (x >= 0 && x <= 1.0);
+  g_return_if_fail (y >= 0 && y <= 1.0);
+
+  curve->samples[ROUND (x * (gdouble) (curve->n_samples - 1))] = y;
+
+  g_signal_emit (G_OBJECT (curve), gimp_curve_signals[SAMPLES_CHANGED], 0);
 }
 
 /**
@@ -649,4 +730,19 @@ gimp_curve_is_identity (GimpCurve *curve)
   g_return_val_if_fail (GIMP_IS_CURVE (curve), FALSE);
 
   return curve->identity;
+}
+
+
+/* Private functions */
+
+static void
+gimp_curve_build_samples (GimpCurve *curve)
+{
+  curve->samples = g_renew (gdouble, curve->samples, curve->n_samples);
+
+  for (gint i = 0; i < curve->n_samples; i++)
+    curve->samples[i] = (gdouble) i / (gdouble) (curve->n_samples - 1);
+
+  if (curve->curve_type == GIMP_CURVE_FREE)
+    curve->identity = TRUE;
 }

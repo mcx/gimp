@@ -108,7 +108,9 @@ GimpCurvePointType   gimp_curve_get_point_type    (GimpCurve          *curve,
                                                    gint                point);
 void                 gimp_curve_clear_points      (GimpCurve          *curve);
 
-void                 gimp_curve_set_curve         (GimpCurve          *curve,
+gdouble              gimp_curve_get_sample        (GimpCurve          *curve,
+                                                   gdouble             x);
+void                 gimp_curve_set_sample        (GimpCurve          *curve,
                                                    gdouble             x,
                                                    gdouble             y);
 

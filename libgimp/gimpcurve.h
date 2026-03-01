@@ -37,15 +37,11 @@ G_DECLARE_FINAL_TYPE (GimpCurve, gimp_curve, GIMP, CURVE, GObject)
 
 GimpCurve          * gimp_curve_new               (void);
 
+GimpCurveType        gimp_curve_get_curve_type    (GimpCurve          *curve);
 void                 gimp_curve_set_curve_type    (GimpCurve          *curve,
                                                    GimpCurveType       curve_type);
 
 gint                 gimp_curve_get_n_points      (GimpCurve          *curve);
-
-void                 gimp_curve_set_n_samples     (GimpCurve          *curve,
-                                                   gint                n_samples);
-gint                 gimp_curve_get_n_samples     (GimpCurve          *curve);
-
 gint                 gimp_curve_add_point         (GimpCurve          *curve,
                                                    gdouble             x,
                                                    gdouble             y);
@@ -53,14 +49,11 @@ void                 gimp_curve_get_point         (GimpCurve          *curve,
                                                    gint                point,
                                                    gdouble            *x,
                                                    gdouble            *y);
-
 GimpCurvePointType   gimp_curve_get_point_type    (GimpCurve          *curve,
                                                    gint                point);
-
 void                 gimp_curve_set_point_type    (GimpCurve          *curve,
                                                    gint                point,
                                                    GimpCurvePointType  type);
-
 void                 gimp_curve_delete_point      (GimpCurve          *curve,
                                                    gint                point);
 void                 gimp_curve_set_point         (GimpCurve          *curve,
@@ -69,7 +62,17 @@ void                 gimp_curve_set_point         (GimpCurve          *curve,
                                                    gdouble             y);
 void                 gimp_curve_clear_points      (GimpCurve          *curve);
 
+gint                 gimp_curve_get_n_samples     (GimpCurve          *curve);
+void                 gimp_curve_set_n_samples     (GimpCurve          *curve,
+                                                   gint                n_samples);
+gdouble              gimp_curve_get_sample        (GimpCurve          *curve,
+                                                   gdouble             x);
+void                 gimp_curve_set_sample        (GimpCurve          *curve,
+                                                   gdouble             x,
+                                                   gdouble             y);
+
 gboolean             gimp_curve_is_identity       (GimpCurve          *curve);
+
 
 G_END_DECLS
 

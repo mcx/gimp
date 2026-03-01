@@ -26,7 +26,7 @@ G_BEGIN_DECLS
 
 /* Increment every time the protocol changes
  */
-#define GIMP_PROTOCOL_VERSION  0x0116
+#define GIMP_PROTOCOL_VERSION  0x0117
 
 
 enum
@@ -345,6 +345,7 @@ struct _GPParamCurve
   guint32  *point_types;
 
   guint32   n_samples;
+  gdouble  *samples;
 };
 
 struct _GPParam

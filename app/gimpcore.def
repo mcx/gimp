@@ -891,7 +891,7 @@ gimp_curve_reset
 gimp_curve_set_point
 gimp_curve_get_uchar
 gimp_curve_move_point
-gimp_curve_set_curve
+gimp_curve_set_sample
 gimp_curve_set_curve_type
 gimp_curve_get_closest_point
 gimp_gegl_init

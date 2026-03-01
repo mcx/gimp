@@ -185,10 +185,12 @@ EXPORTS
 	gimp_curve_add_point
 	gimp_curve_clear_points
 	gimp_curve_delete_point
+	gimp_curve_get_curve_type
 	gimp_curve_get_n_points
 	gimp_curve_get_n_samples
 	gimp_curve_get_point
 	gimp_curve_get_point_type
+	gimp_curve_get_sample
 	gimp_curve_get_type
 	gimp_curve_is_identity
 	gimp_curve_new
@@ -197,6 +199,7 @@ EXPORTS
 	gimp_curve_set_n_samples
 	gimp_curve_set_point
 	gimp_curve_set_point_type
+	gimp_curve_set_sample
 	gimp_curve_type_get_type
 	gimp_debug_timer_end
 	gimp_debug_timer_start

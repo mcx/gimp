@@ -1058,10 +1058,21 @@ gimp_curve_clear_points (GimpCurve *curve)
     }
 }
 
+gdouble
+gimp_curve_get_sample (GimpCurve *curve,
+                       gdouble    x)
+{
+  g_return_val_if_fail (GIMP_IS_CURVE (curve), 0);
+  g_return_val_if_fail (curve->curve_type == GIMP_CURVE_FREE, 0);
+  g_return_val_if_fail (x >= 0 && x <= 1.0, 0);
+
+  return curve->samples[ROUND (x * (gdouble) (curve->n_samples - 1))];
+}
+
 void
-gimp_curve_set_curve (GimpCurve *curve,
-                      gdouble    x,
-                      gdouble    y)
+gimp_curve_set_sample (GimpCurve *curve,
+                       gdouble    x,
+                       gdouble    y)
 {
   g_return_if_fail (GIMP_IS_CURVE (curve));
   g_return_if_fail (x >= 0 && x <= 1.0);

@@ -466,9 +466,9 @@ gimp_curves_config_new_explicit (gint32         channel,
   gimp_curve_set_n_samples (curve, n_samples);
 
   for (i = 0; i < n_samples; i++)
-    gimp_curve_set_curve (curve,
-                          (gdouble) i / (gdouble) (n_samples - 1),
-                          (gdouble) samples[i]);
+    gimp_curve_set_sample (curve,
+                           (gdouble) i / (gdouble) (n_samples - 1),
+                           (gdouble) samples[i]);
 
   gimp_data_thaw (GIMP_DATA (curve));
 
