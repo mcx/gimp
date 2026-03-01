@@ -92,6 +92,20 @@
           <li>XCF files won't start loading anymore before all fonts are loaded</li>
           <li>Dropping a color or pattern on a vector layer updates its fill property</li>
           <li>Curves and Levels now default to working in linear working space</li>
+          <li demo="toolbox:flip">
+          The Flip tool can now be controlled with arrow keys
+          </li>
+          <li demo="toolbox:shear">
+          The Shear tool can now be adjusted with arrow keys
+          </li>
+          <li demo="layer-list,
+                    layer-list:layers-delete">
+          The Delete button in Layers dialog will delete the layer mask if selected
+          </li>
+          <li>The DDS plug-in now supports exporting in BC7 format</li>
+          <li>The OpenEXR plug-in can now import Luminance/Chroma OpenEXR images</li>
+          <li>Palette swatches from the Procreate art program can now be imported</li>
+          <li>Swatchbooker paletter support was improved with better color management</li>
           <li>Several libgimp functions deprecated in favor of using the filter API directly</li>
           <li>Various fixes and usability updates</li>
         </ul>
