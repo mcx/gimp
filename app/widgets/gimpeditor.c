@@ -25,6 +25,7 @@
 
 #include "libgimpbase/gimpbase.h"
 #include "libgimpwidgets/gimpwidgets.h"
+#include "libgimpwidgets/gimpwidgets-private.h"
 
 #include "widgets-types.h"
 
@@ -734,6 +735,7 @@ gimp_editor_add_action_button (GimpEditor  *editor,
   else
     button = gimp_button_new ();
 
+  gimp_widget_set_identifier (button, action_name);
   gtk_button_set_relief (GTK_BUTTON (button), button_relief);
 
   icon_name = gimp_action_get_icon_name (action);
