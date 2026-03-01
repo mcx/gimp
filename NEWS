@@ -47,6 +47,9 @@ Core:
     device of type "Pen". We don't try anymore to be clever and detect
     if the pen really has a pressure axis. As it turns out, such
     heuristic was quite fragile and not working in some cases.
+  - Some work started on some file dialogs to use API more compatible
+    with native file dialogs, hence preparing the field for this port in
+    the next minor series.
 
 Tools:
 
@@ -106,6 +109,12 @@ Graphical User Interface:
     respective Canvas Size dialog.
   - Hide move handle in Text Editor window (this is only meant for the
     on-canvas text editor).
+  - Do not trigger tree view search unnecessarily in various widgets
+    where it is counter-productive.
+  - We will not show uninstalled languages anymore in Preferences >
+    Interface. This could happen when packagers are splitting language
+    modules into separate packages, or when configuring a Windows
+    installation not to install all languages.
 
 Command Line Interface:
 
@@ -135,6 +144,10 @@ Plug-Ins:
   - Various Python plug-ins were improved to properly work in headless
     environments.
   - Image Map dialog improved so that it doesn't show too wide.
+  - Script-Fu: libgimpui enum values are now also introspected, same as
+    libgimp enum values are. E.g. GIMP_ASPECT_SQUARE is ASPECT-SQUARE in
+    Script-Fu.
+  - EXR: Import YUV OpenEXR chroma channels as RGB.
 
 API:
 
@@ -164,8 +177,14 @@ API:
         "gimp:posterize".
       * gimp_drawable_threshold() in favor of filter
         "gimp:threshold".
+      * gimp_drawable_curves_explicit() in favor of filter
+        "gimp:curves".
+      * gimp_drawable_curves_spline() in favor of filter
+        "gimp:curves".
     + gimp_image_get_thumbnail() implementation updated to always return
       sRGB(A) 8-bit data.
+    + New GimpCurve class and various API to create and configure a
+      curve.
   - libgimpconfig:
     + GimpConfig objects can now be given a XCF version to force the
       serialization to use older formats. This is used for serializing
