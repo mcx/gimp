@@ -346,6 +346,8 @@ gimp_directory (void)
 
 #else /* UNIX */
 
+      const gchar *snap_path;
+
       if (g_file_test ("/.flatpak-info", G_FILE_TEST_EXISTS))
         {                       /* Linux flatpak version */
           const gchar *host_xdg_config_home = g_getenv ("HOST_XDG_CONFIG_HOME");
@@ -361,7 +363,7 @@ gimp_directory (void)
                                           NULL);
         }
 
-      const gchar *snap_path = g_getenv ("SNAP");
+      snap_path = g_getenv ("SNAP");
       if (snap_path && g_file_test (snap_path, G_FILE_TEST_IS_DIR))
         {
           const gchar *snap_real_home = g_getenv ("SNAP_REAL_HOME");
