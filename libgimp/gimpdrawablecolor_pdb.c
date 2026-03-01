@@ -206,6 +206,8 @@ gimp_drawable_colorize_hsl (GimpDrawable *drawable,
  * modified. Use the gimp_drawable_curves_spline() function to modify
  * intensity levels with Catmull Rom splines.
  *
+ * Deprecated: 3.2: Use filter "gimp:curves" instead.
+ *
  * Returns: TRUE on success.
  *
  * Since: 2.10
@@ -263,6 +265,8 @@ gimp_drawable_curves_explicit (GimpDrawable         *drawable,
  *
  * Use [method@Gimp.Drawable.curves_explicit] to explicitly modify
  * intensity levels.
+ *
+ * Deprecated: 3.2: Use filter "gimp:curves" instead.
  *
  * Returns: TRUE on success.
  *

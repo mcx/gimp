@@ -201,6 +201,9 @@ HELP
     &std_pdb_misc;
     $since = '2.10';
 
+    $deprecated = 'gimp:curves';
+    $deprecated_since = '3.2';
+
     @inargs = (
 	{ name => 'drawable', type => 'drawable',
 	  desc => 'The drawable' },
@@ -265,6 +268,9 @@ HELP
 
     &std_pdb_misc;
     $since = '2.10';
+
+    $deprecated = 'gimp:curves';
+    $deprecated_since = '3.2';
 
     @inargs = (
 	{ name => 'drawable', type => 'drawable',

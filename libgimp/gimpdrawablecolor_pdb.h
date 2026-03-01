@@ -48,10 +48,12 @@ gboolean gimp_drawable_colorize_hsl        (GimpDrawable         *drawable,
                                             gdouble               hue,
                                             gdouble               saturation,
                                             gdouble               lightness);
+GIMP_DEPRECATED_FOR(gimp:curves)
 gboolean gimp_drawable_curves_explicit     (GimpDrawable         *drawable,
                                             GimpHistogramChannel  channel,
                                             gsize                 num_values,
                                             const gdouble        *values);
+GIMP_DEPRECATED_FOR(gimp:curves)
 gboolean gimp_drawable_curves_spline       (GimpDrawable         *drawable,
                                             GimpHistogramChannel  channel,
                                             gsize                 num_coordinates,

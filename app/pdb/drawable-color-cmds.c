@@ -987,12 +987,16 @@ register_drawable_color_procs (GimpPDB *pdb)
                                "gimp-drawable-curves-explicit");
   gimp_procedure_set_static_help (procedure,
                                   "Modifies the intensity curve(s) for specified drawable.",
-                                  "Modifies the intensity mapping for one channel in the specified drawable. The channel can be either an intensity component, or the value. The 'values' parameter is an array of doubles which explicitly defines how each pixel value in the drawable will be modified. Use the 'gimp-drawable-curves-spline' function to modify intensity levels with Catmull Rom splines.",
+                                  "Modifies the intensity mapping for one channel in the specified drawable. The channel can be either an intensity component, or the value. The 'values' parameter is an array of doubles which explicitly defines how each pixel value in the drawable will be modified. Use the 'gimp-drawable-curves-spline' function to modify intensity levels with Catmull Rom splines.\n"
+                                  "\n"
+                                  "Deprecated: Use filter \"gimp:curves\" instead.",
                                   NULL);
   gimp_procedure_set_static_attribution (procedure,
                                          "Spencer Kimball & Peter Mattis",
                                          "Spencer Kimball & Peter Mattis",
                                          "1995-1996");
+  gimp_procedure_set_deprecated (procedure,
+                                 "gimp:curves");
   gimp_procedure_add_argument (procedure,
                                gimp_param_spec_drawable ("drawable",
                                                          "drawable",
@@ -1026,12 +1030,16 @@ register_drawable_color_procs (GimpPDB *pdb)
                                   "\n"
                                   "The @points parameter is an array of doubles in the range `[0, 1]` which define a set of control points which describe a Catmull Rom spline which yields the final intensity curve. Since every point has 2 coordinates, the size of @points (@num_coordinates) must be a multiple of 2, equal or bigger than 4 (i.e. a minimum of 2 points).\n"
                                   "\n"
-                                  "Use [method@Gimp.Drawable.curves_explicit] to explicitly modify intensity levels.",
+                                  "Use [method@Gimp.Drawable.curves_explicit] to explicitly modify intensity levels.\n"
+                                  "\n"
+                                  "Deprecated: Use filter \"gimp:curves\" instead.",
                                   NULL);
   gimp_procedure_set_static_attribution (procedure,
                                          "Spencer Kimball & Peter Mattis",
                                          "Spencer Kimball & Peter Mattis",
                                          "1995-1996");
+  gimp_procedure_set_deprecated (procedure,
+                                 "gimp:curves");
   gimp_procedure_add_argument (procedure,
                                gimp_param_spec_drawable ("drawable",
                                                          "drawable",
