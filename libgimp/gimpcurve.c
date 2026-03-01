@@ -30,14 +30,18 @@ enum
 {
   PROP_0,
   PROP_CURVE_TYPE,
-  PROP_N_POINTS,
-  PROP_POINTS,
-  PROP_POINT_TYPES,
   PROP_N_SAMPLES,
-  PROP_SAMPLES,
   N_PROPS
 };
 static GParamSpec *obj_props[N_PROPS] = { NULL, };
+
+enum
+{
+  POINTS_CHANGED,
+  SAMPLES_CHANGED,
+  LAST_SIGNAL
+};
+static guint gimp_curve_signals[LAST_SIGNAL] = { 0 };
 
 typedef struct
 {
@@ -78,60 +82,75 @@ G_DEFINE_TYPE (GimpCurve, gimp_curve, G_TYPE_OBJECT);
 static void  gimp_curve_class_init (GimpCurveClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
-  GParamSpec   *array_spec;
+
+  /**
+   * GimpCurve::points-changed:
+   * @curve: the curve emitting the signal
+   *
+   * Emitted when any points are added, deleted, or edited in @curve.
+   *
+   * Since: 3.2
+   */
+  gimp_curve_signals[POINTS_CHANGED] =
+    g_signal_new ("points-changed",
+                  G_TYPE_FROM_CLASS (klass),
+                  G_SIGNAL_RUN_FIRST,
+                  0,
+                  NULL, NULL, NULL,
+                  G_TYPE_NONE, 0);
+
+  /**
+   * GimpCurve::samples-changed:
+   * @curve: the curve emitting the signal
+   *
+   * Emitted when any sample is edited, or if the number of samples
+   * changed, in @curve.
+   *
+   * Since: 3.2
+   */
+  gimp_curve_signals[SAMPLES_CHANGED] =
+    g_signal_new ("samples-changed",
+                  G_TYPE_FROM_CLASS (klass),
+                  G_SIGNAL_RUN_FIRST,
+                  0,
+                  NULL, NULL, NULL,
+                  G_TYPE_NONE, 0);
 
   object_class->finalize     = gimp_curve_finalize;
   object_class->set_property = gimp_curve_set_property;
   object_class->get_property = gimp_curve_get_property;
 
+  /**
+   * GimpCurve:curve-type:
+   *
+   * The curve type.
+   *
+   * Since: 3.2
+   */
   obj_props[PROP_CURVE_TYPE] =
       g_param_spec_enum ("curve-type",
                          "Curve Type",
                          "The curve type",
                          GIMP_TYPE_CURVE_TYPE,
                          GIMP_CURVE_SMOOTH,
-                         GIMP_CONFIG_PARAM_FLAGS);
+                         GIMP_CONFIG_PARAM_FLAGS |
+                         G_PARAM_EXPLICIT_NOTIFY);
 
-  obj_props[PROP_N_POINTS] =
-      g_param_spec_int ("n-points",
-                        "Number of Points",
-                        "The number of points",
-                        0, G_MAXINT, 0,
-                        /* for backward compatibility */
-                        GIMP_CONFIG_PARAM_IGNORE | GIMP_CONFIG_PARAM_FLAGS);
-
-  array_spec = g_param_spec_double ("point", NULL, NULL,
-                                    -1.0, 1.0, 0.0, GIMP_PARAM_READWRITE);
-  obj_props[PROP_POINTS] =
-      gimp_param_spec_value_array ("points",
-                                   NULL, NULL,
-                                   array_spec,
-                                   GIMP_CONFIG_PARAM_FLAGS);
-
-  array_spec = g_param_spec_enum ("point-type", NULL, NULL,
-                                  GIMP_TYPE_CURVE_POINT_TYPE,
-                                  GIMP_CURVE_POINT_SMOOTH,
-                                  GIMP_PARAM_READWRITE);
-  obj_props[PROP_POINT_TYPES] =
-      gimp_param_spec_value_array ("point-types",
-                                   NULL, NULL,
-                                   array_spec,
-                                   GIMP_CONFIG_PARAM_FLAGS);
-
+  /**
+   * GimpCurve:n-samples:
+   *
+   * The number of samples this [enum@Gimp.CurveType.FREE] curve is
+   * split into.
+   *
+   * Since: 3.2
+   */
   obj_props[PROP_N_SAMPLES] =
       g_param_spec_int ("n-samples",
                         "Number of Samples",
                         "The number of samples",
                         256, 256, 256,
-                        GIMP_CONFIG_PARAM_FLAGS);
-
-  array_spec = g_param_spec_double ("sample", NULL, NULL,
-                                    0.0, 1.0, 0.0, GIMP_PARAM_READWRITE);
-  obj_props[PROP_SAMPLES] =
-      gimp_param_spec_value_array ("samples",
-                                   NULL, NULL,
-                                   array_spec,
-                                   GIMP_CONFIG_PARAM_FLAGS);
+                        GIMP_CONFIG_PARAM_FLAGS |
+                        G_PARAM_EXPLICIT_NOTIFY);
 
   g_object_class_install_properties (object_class, N_PROPS, obj_props);
 }
@@ -172,134 +191,8 @@ gimp_curve_set_property (GObject      *object,
       gimp_curve_set_curve_type (curve, g_value_get_enum (value));
       break;
 
-    case PROP_N_POINTS:
-      /* ignored */
-      break;
-
-    case PROP_POINTS:
-      {
-        GimpValueArray *array = g_value_get_boxed (value);
-        GimpCurvePoint *points;
-        gint            length;
-        gint            n_points;
-        gint            i;
-
-        if (! array)
-          {
-            gimp_curve_clear_points (curve);
-
-            break;
-          }
-
-        length = gimp_value_array_length (array) / 2;
-
-        n_points = 0;
-        points   = g_new0 (GimpCurvePoint, length);
-
-        for (i = 0; i < length; i++)
-          {
-            GValue *x = gimp_value_array_index (array, i * 2);
-            GValue *y = gimp_value_array_index (array, i * 2 + 1);
-
-            /* for backward compatibility */
-            if (g_value_get_double (x) < 0.0)
-              continue;
-
-            points[n_points].x = CLAMP (g_value_get_double (x), 0.0, 1.0);
-            points[n_points].y = CLAMP (g_value_get_double (y), 0.0, 1.0);
-
-            if (n_points > 0)
-              {
-                points[n_points].x = MAX (points[n_points].x,
-                                          points[n_points - 1].x);
-              }
-
-            if (n_points < curve->n_points)
-              points[n_points].type = curve->points[n_points].type;
-            else
-              points[n_points].type = GIMP_CURVE_POINT_SMOOTH;
-
-            n_points++;
-          }
-
-        g_free (curve->points);
-
-        curve->n_points = n_points;
-        curve->points   = points;
-
-        g_object_notify_by_pspec (object, obj_props[PROP_N_POINTS]);
-        g_object_notify_by_pspec (object, obj_props[PROP_POINT_TYPES]);
-      }
-      break;
-
-    case PROP_POINT_TYPES:
-      {
-        GimpValueArray *array = g_value_get_boxed (value);
-        GimpCurvePoint *points;
-        gint            length;
-        gdouble         x     = 0.0;
-        gdouble         y     = 0.0;
-        gint            i;
-
-        if (! array)
-          {
-            gimp_curve_clear_points (curve);
-
-            break;
-          }
-
-        length = gimp_value_array_length (array);
-
-        points = g_new0 (GimpCurvePoint, length);
-
-        for (i = 0; i < length; i++)
-          {
-            GValue *type = gimp_value_array_index (array, i);
-
-            points[i].type = g_value_get_uint (type);
-
-            if (i < curve->n_points)
-              {
-                x = curve->points[i].x;
-                y = curve->points[i].y;
-              }
-
-            points[i].x = x;
-            points[i].y = y;
-          }
-
-        g_free (curve->points);
-
-        curve->n_points = length;
-        curve->points   = points;
-
-        g_object_notify_by_pspec (object, obj_props[PROP_N_POINTS]);
-        g_object_notify_by_pspec (object, obj_props[PROP_POINTS]);
-      }
-      break;
-
     case PROP_N_SAMPLES:
       gimp_curve_set_n_samples (curve, g_value_get_int (value));
-      break;
-
-    case PROP_SAMPLES:
-      {
-        GimpValueArray *array = g_value_get_boxed (value);
-        gint            length;
-        gint            i;
-
-        if (! array)
-          break;
-
-        length = gimp_value_array_length (array);
-
-        for (i = 0; i < curve->n_samples && i < length; i++)
-          {
-            GValue *v = gimp_value_array_index (array, i);
-
-            curve->samples[i] = CLAMP (g_value_get_double (v), 0.0, 1.0);
-          }
-      }
       break;
 
     default:
@@ -322,75 +215,8 @@ gimp_curve_get_property (GObject    *object,
       g_value_set_enum (value, curve->curve_type);
       break;
 
-    case PROP_N_POINTS:
-      g_value_set_int (value, curve->n_points);
-      break;
-
-    case PROP_POINTS:
-      {
-        GimpValueArray *array = gimp_value_array_new (curve->n_points * 2);
-        GValue          v     = G_VALUE_INIT;
-        gint            i;
-
-        g_value_init (&v, G_TYPE_DOUBLE);
-
-        for (i = 0; i < curve->n_points; i++)
-          {
-            g_value_set_double (&v, curve->points[i].x);
-            gimp_value_array_append (array, &v);
-
-            g_value_set_double (&v, curve->points[i].y);
-            gimp_value_array_append (array, &v);
-          }
-
-        g_value_unset (&v);
-
-        g_value_take_boxed (value, array);
-      }
-      break;
-
-    case PROP_POINT_TYPES:
-      {
-        GimpValueArray *array = gimp_value_array_new (curve->n_points);
-        GValue          v     = G_VALUE_INIT;
-        gint            i;
-
-        g_value_init (&v, GIMP_TYPE_CURVE_POINT_TYPE);
-
-        for (i = 0; i < curve->n_points; i++)
-          {
-            g_value_set_enum (&v, curve->points[i].type);
-            gimp_value_array_append (array, &v);
-          }
-
-        g_value_unset (&v);
-
-        g_value_take_boxed (value, array);
-      }
-      break;
-
     case PROP_N_SAMPLES:
       g_value_set_int (value, curve->n_samples);
-      break;
-
-    case PROP_SAMPLES:
-      {
-        GimpValueArray *array = gimp_value_array_new (curve->n_samples);
-        GValue          v     = G_VALUE_INIT;
-        gint            i;
-
-        g_value_init (&v, G_TYPE_DOUBLE);
-
-        for (i = 0; i < curve->n_samples; i++)
-          {
-            g_value_set_double (&v, curve->samples[i]);
-            gimp_value_array_append (array, &v);
-          }
-
-        g_value_unset (&v);
-
-        g_value_take_boxed (value, array);
-      }
       break;
 
     default:
@@ -401,12 +227,36 @@ gimp_curve_get_property (GObject    *object,
 
 /* Public Functions */
 
+/**
+ * gimp_curve_new:
+ *
+ * Returns: (transfer full): a new curve.
+ *
+ * Since: 3.2
+ */
 GimpCurve *
 gimp_curve_new (void)
 {
   return g_object_new (GIMP_TYPE_CURVE, NULL);
 }
 
+/**
+ * gimp_curve_set_curve_type:
+ * @curve: the #GimpCurve.
+ * @curve_type: the new curve type.
+ *
+ * Sets the curve type of @curve, as follows:
+ *
+ * - Nothing happens if the curve type is unchanged.
+ * - If you change to [enum@Gimp.CurveType.SMOOTH], it will create a
+ *   non-specified number of points and will approximate their position
+ *   along the freehand curve. All default points will be
+ *   [enum@Gimp.CurvePointType.SMOOTH].
+ * - If you change to [enum@Gimp.CurveType.FREE], all existing points
+ *   will be cleared.
+ *
+ * Since: 3.2
+ */
 void
 gimp_curve_set_curve_type (GimpCurve     *curve,
                            GimpCurveType  curve_type)
@@ -441,9 +291,7 @@ gimp_curve_set_curve_type (GimpCurve     *curve,
               curve->points[i].type = GIMP_CURVE_POINT_SMOOTH;
             }
 
-          g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_N_POINTS]);
-          g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_POINTS]);
-          g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_POINT_TYPES]);
+          g_signal_emit (G_OBJECT (curve), gimp_curve_signals[POINTS_CHANGED], 0);
         }
       else
         {
@@ -456,6 +304,24 @@ gimp_curve_set_curve_type (GimpCurve     *curve,
     }
 }
 
+/**
+ * gimp_curve_get_n_points:
+ * @curve: the #GimpCurve.
+ *
+ * Gets the number of points in a [enum@Gimp.CurveType.SMOOTH] curve. Note that it will always
+ * be 0 for a [enum@Gimp.CurveType.FREE] curve.
+ *
+ * This can later be used e.g. in [method@Gimp.Curve.get_point] as points
+ * are numbered from 0 (included) to the returned number (excluded).
+ *
+ * Note that the #GimpCurve API is not thread-safe. So be careful that
+ * the information on the number of points is still valid when you use
+ * it (you may have added or removed points in particular).
+ *
+ * Returns: the number of points in a smooth curve.
+ *
+ * Since: 3.2
+ */
 gint
 gimp_curve_get_n_points (GimpCurve *curve)
 {
@@ -464,6 +330,22 @@ gimp_curve_get_n_points (GimpCurve *curve)
   return curve->n_points;
 }
 
+/**
+ * gimp_curve_set_n_samples:
+ * @curve: the #GimpCurve.
+ * @n_samples: the number of samples.
+ *
+ * Sets the number of sample in a [enum@Gimp.CurveType.FREE] @curve.
+ *
+ * Samples will be positioned on the curve abscissa at regular interval.
+ * The more samples, the more your curve will have details. Currently,
+ * the value of @n_samples is limited and must be between `2^8` and `2^12`.
+ *
+ * Note that changing the number of samples will reset the curve to an
+ * identity curve.
+ *
+ * Since: 3.2
+ */
 void
 gimp_curve_set_n_samples (GimpCurve *curve,
                           gint       n_samples)
@@ -479,22 +361,31 @@ gimp_curve_set_n_samples (GimpCurve *curve,
       g_object_freeze_notify (G_OBJECT (curve));
 
       curve->n_samples = n_samples;
-      g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_N_SAMPLES]);
-
-      curve->samples = g_renew (gdouble, curve->samples, curve->n_samples);
+      curve->samples   = g_renew (gdouble, curve->samples, curve->n_samples);
 
       for (i = 0; i < curve->n_samples; i++)
         curve->samples[i] = (gdouble) i / (gdouble) (curve->n_samples - 1);
-
-      g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_SAMPLES]);
 
       if (curve->curve_type == GIMP_CURVE_FREE)
         curve->identity = TRUE;
 
       g_object_thaw_notify (G_OBJECT (curve));
+
+      g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_N_SAMPLES]);
+      g_signal_emit (G_OBJECT (curve), gimp_curve_signals[SAMPLES_CHANGED], 0);
     }
 }
 
+/**
+ * gimp_curve_get_n_samples:
+ * @curve: the #GimpCurve.
+ *
+ * Gets the number of samples in a [enum@Gimp.CurveType.FREE] curve.
+ *
+ * Returns: the number of samples in a freehand curve.
+ *
+ * Since: 3.2
+ */
 gint
 gimp_curve_get_n_samples (GimpCurve *curve)
 {
@@ -503,6 +394,29 @@ gimp_curve_get_n_samples (GimpCurve *curve)
   return curve->n_samples;
 }
 
+/**
+ * gimp_curve_add_point:
+ * @curve: the #GimpCurve.
+ * @x: the point abscissa on a `[0.0, 1.0]` range.
+ * @y: the point ordinate on a `[0.0, 1.0]` range.
+ *
+ * Add a new point in a [enum@Gimp.CurveType.SMOOTH] @curve, with
+ * coordinates `(x, y)`. Any value outside the `[0.0, 1.0]` range will
+ * be silently clamped.
+ *
+ * The returned identifier can later be used e.g. in
+ * [method@Gimp.Curve.get_point] or other functions taking a @point number
+ * as argument.
+ *
+ * Calling this may change identifiers for other points and the total
+ * number of points in this @curve. Any such information you currently
+ * hold should be considered invalid once the curve is changed.
+ *
+ * Returns: a point identifier to be used in other functions, or -1 on
+ *          error.
+ *
+ * Since: 3.2
+ */
 gint
 gimp_curve_add_point (GimpCurve *curve,
                       gdouble    x,
@@ -541,13 +455,30 @@ gimp_curve_add_point (GimpCurve *curve,
   curve->n_points++;
   curve->points = points;
 
-  g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_N_POINTS]);
-  g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_POINTS]);
-  g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_POINT_TYPES]);
+  g_signal_emit (G_OBJECT (curve), gimp_curve_signals[POINTS_CHANGED], 0);
 
   return point;
 }
 
+/**
+ * gimp_curve_get_point:
+ * @curve: the #GimpCurve.
+ * @point: a point identifier.
+ * @x: (out) (nullable): the point abscissa on a `[0.0, 1.0]` range.
+ * @y: (out) (nullable): the point ordinate on a `[0.0, 1.0]` range.
+ *
+ * Gets the @point coordinates for a [enum@Gimp.CurveType.SMOOTH] @curve.
+ *
+ * The @point identifier must be between 0 and the value returned by
+ * [method@Gimp.Curve.get_n_points].
+ *
+ * You may also use a point identifier as returned by
+ * [method@Gimp.Curve.add_point], which will correspond to the same
+ * point, unless you modified the @curve since (e.g. by calling
+ * `gimp_curve_add_point` again, or by deleting or modifying a point).
+ *
+ * Since: 3.2
+ */
 void
 gimp_curve_get_point (GimpCurve *curve,
                       gint       point,
@@ -561,6 +492,16 @@ gimp_curve_get_point (GimpCurve *curve,
   if (y) *y = curve->points[point].y;
 }
 
+/**
+ * gimp_curve_set_point_type:
+ * @curve: the #GimpCurve.
+ * @point: a point identifier.
+ * @type: a point type.
+ *
+ * Sets the @point type in a [enum@Gimp.CurveType.SMOOTH] @curve.
+ *
+ * Since: 3.2
+ */
 void
 gimp_curve_set_point_type (GimpCurve          *curve,
                            gint                point,
@@ -571,9 +512,18 @@ gimp_curve_set_point_type (GimpCurve          *curve,
 
   curve->points[point].type = type;
 
-  g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_POINT_TYPES]);
+  g_signal_emit (G_OBJECT (curve), gimp_curve_signals[POINTS_CHANGED], 0);
 }
 
+/**
+ * gimp_curve_get_point_type:
+ * @curve: the #GimpCurve.
+ * @point: a point identifier.
+ *
+ * Returns: the @point type of a [enum@Gimp.CurveType.SMOOTH] @curve.
+ *
+ * Since: 3.2
+ */
 GimpCurvePointType
 gimp_curve_get_point_type (GimpCurve *curve,
                            gint       point)
@@ -584,6 +534,23 @@ gimp_curve_get_point_type (GimpCurve *curve,
   return curve->points[point].type;
 }
 
+/**
+ * gimp_curve_delete_point:
+ * @curve: the #GimpCurve.
+ * @point: a point identifier.
+ *
+ * Deletes a specific @point from a [enum@Gimp.CurveType.SMOOTH] @curve.
+ *
+ * The @point identifier must be between 0 and the value returned by
+ * [method@Gimp.Curve.get_n_points].
+ *
+ * You may also use a point identifier as returned by
+ * [method@Gimp.Curve.add_point], which will correspond to the same
+ * point, unless you modified the @curve since (e.g. by calling
+ * `gimp_curve_add_point` again, or by deleting or modifying a point).
+ *
+ * Since: 3.2
+ */
 void
 gimp_curve_delete_point (GimpCurve *curve,
                          gint       point)
@@ -605,11 +572,21 @@ gimp_curve_delete_point (GimpCurve *curve,
   curve->n_points--;
   curve->points = points;
 
-  g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_N_POINTS]);
-  g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_POINTS]);
-  g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_POINT_TYPES]);
+  g_signal_emit (G_OBJECT (curve), gimp_curve_signals[POINTS_CHANGED], 0);
 }
 
+/**
+ * gimp_curve_set_point:
+ * @curve: the #GimpCurve.
+ * @point: a point identifier.
+ * @x: the point abscissa on a `[0.0, 1.0]` range.
+ * @y: the point ordinate on a `[0.0, 1.0]` range.
+ *
+ * Sets the @point coordinates in a [enum@Gimp.CurveType.SMOOTH] @curve.
+ * Any value outside the `[0.0, 1.0]` range will be silently clamped.
+ *
+ * Since: 3.2
+ */
 void
 gimp_curve_set_point (GimpCurve *curve,
                       gint       point,
@@ -628,10 +605,19 @@ gimp_curve_set_point (GimpCurve *curve,
   if (point < curve->n_points - 1)
     curve->points[point].x = MIN (x, curve->points[point + 1].x);
 
-  g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_POINTS]);
+  g_signal_emit (G_OBJECT (curve), gimp_curve_signals[POINTS_CHANGED], 0);
 }
 
-
+/**
+ * gimp_curve_clear_points:
+ * @curve: the #GimpCurve.
+ *
+ * Deletes all points from a [enum@Gimp.CurveType.SMOOTH] @curve.
+ *
+ * A subsequent call to [method@Gimp.Curve.get_n_points] will return 0.
+ *
+ * Since: 3.2
+ */
 void
 gimp_curve_clear_points (GimpCurve *curve)
 {
@@ -642,12 +628,9 @@ gimp_curve_clear_points (GimpCurve *curve)
       g_clear_pointer (&curve->points, g_free);
       curve->n_points = 0;
 
-      g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_N_POINTS]);
-      g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_POINTS]);
-      g_object_notify_by_pspec (G_OBJECT (curve), obj_props[PROP_POINT_TYPES]);
+      g_signal_emit (G_OBJECT (curve), gimp_curve_signals[POINTS_CHANGED], 0);
     }
 }
-
 
 /**
  * gimp_curve_is_identity:
@@ -657,6 +640,8 @@ gimp_curve_clear_points (GimpCurve *curve)
  * itself. If it returns %FALSE, then this assumption can not be made.
  *
  * Returns: %TRUE if the curve is an identity mapping, %FALSE otherwise.
+ *
+ * Since: 3.2
  **/
 gboolean
 gimp_curve_is_identity (GimpCurve *curve)

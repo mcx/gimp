@@ -1790,9 +1790,9 @@ gimp_value_to_gp_param (const GValue *value,
 
       param->param_type = GP_PARAM_TYPE_CURVE;
 
+      param->data.d_curve.n_points  = gimp_curve_get_n_points (curve);
       g_object_get (curve,
                     "curve-type",  &param->data.d_curve.curve_type,
-                    "n-points",    &param->data.d_curve.n_points,
                     "n-samples",   &param->data.d_curve.n_samples,
                     NULL);
 
